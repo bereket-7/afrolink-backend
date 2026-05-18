@@ -6,3 +6,29 @@ process.env.REDIS_HOST = 'localhost';
 process.env.REDIS_PORT = '6379';
 process.env.PORT = '3001';
 process.env.CORS_ORIGINS = 'http://localhost:3000';
+
+jest.mock('../src/config/database', () => ({
+  __esModule: true,
+  default: {
+    user: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+    },
+    article: {
+      findMany: jest.fn(),
+      count: jest.fn(),
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    readLog: {
+      create: jest.fn(),
+      groupBy: jest.fn(),
+    },
+    dailyAnalytics: {
+      upsert: jest.fn(),
+    },
+    $queryRaw: jest.fn(),
+    $disconnect: jest.fn(),
+  },
+}));

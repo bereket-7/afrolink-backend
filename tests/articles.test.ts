@@ -3,8 +3,6 @@ import jwt from 'jsonwebtoken';
 import { createApp } from '../src/app';
 import prisma from '../src/config/database';
 
-jest.mock('../src/config/database');
-
 const app = createApp();
 
 const authorId = '123e4567-e89b-12d3-a456-426614174001';

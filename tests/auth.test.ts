@@ -3,8 +3,6 @@ import { createApp } from '../src/app';
 import prisma from '../src/config/database';
 import * as authUtils from '../src/utils/auth';
 
-jest.mock('../src/config/database');
-
 const app = createApp();
 
 describe('Auth Endpoints', () => {

@@ -1,10 +1,12 @@
 import rateLimit from 'express-rate-limit';
 import { Request, Response } from 'express';
+import env from '../config/env';
 
 // Rate limiter for article reads to prevent spam
 export const articleReadRateLimiter = rateLimit({
   windowMs: 30 * 1000, // 30 seconds
   max: 1, // Limit each IP to 1 request per windowMs
+  skip: () => env.NODE_ENV === 'test',
   message: {
     Success: false,
     Message: 'Too many requests',

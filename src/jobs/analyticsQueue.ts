@@ -74,7 +74,7 @@ export const initAnalyticsQueue = (): Queue.Queue => {
     {},
     {
       repeat: {
-        pattern: '0 0 * * *',
+        cron: '0 0 * * *',
         tz: 'GMT',
       },
     }

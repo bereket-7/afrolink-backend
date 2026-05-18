@@ -3,36 +3,28 @@ import prisma from '../config/database';
 import { hashPassword, comparePassword, generateToken } from '../utils/auth';
 import { SignupInput, LoginInput } from '../utils/validation';
 import { ApiResponse } from '../types';
+import { AppError } from '../middleware/errorHandler';
+import { asyncHandler } from '../utils/asyncHandler';
 
-export const signup = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { name, email, password, role }: SignupInput = req.body;
+export const signup = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { name, email, password }: SignupInput = req.body;
 
-    // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
 
     if (existingUser) {
-      res.status(409).json({
-        Success: false,
-        Message: 'Conflict',
-        Object: null,
-        Errors: ['Email already registered'],
-      } as ApiResponse);
-      return;
+      throw new AppError('Email already registered', 409);
     }
 
-    // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Create user
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
-        role,
+        role: 'READER',
       },
       select: {
         id: true,
@@ -57,50 +49,25 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
       },
       Errors: null,
     } as ApiResponse);
-  } catch (error) {
-    console.error('Signup error:', error);
-    res.status(500).json({
-      Success: false,
-      Message: 'Internal server error',
-      Object: null,
-      Errors: ['Failed to create user'],
-    } as ApiResponse);
-  }
-};
+});
 
-export const login = async (req: Request, res: Response): Promise<void> => {
-  try {
+export const login = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { email, password }: LoginInput = req.body;
 
-    // Find user
     const user = await prisma.user.findUnique({
       where: { email },
     });
 
     if (!user) {
-      res.status(401).json({
-        Success: false,
-        Message: 'Unauthorized',
-        Object: null,
-        Errors: ['Invalid credentials'],
-      } as ApiResponse);
-      return;
+      throw new AppError('Invalid credentials', 401);
     }
 
-    // Verify password
     const isValidPassword = await comparePassword(password, user.password);
 
     if (!isValidPassword) {
-      res.status(401).json({
-        Success: false,
-        Message: 'Unauthorized',
-        Object: null,
-        Errors: ['Invalid credentials'],
-      } as ApiResponse);
-      return;
+      throw new AppError('Invalid credentials', 401);
     }
 
-    // Generate token
     const token = generateToken({
       sub: user.id,
       role: user.role,
@@ -120,13 +87,4 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       },
       Errors: null,
     } as ApiResponse);
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({
-      Success: false,
-      Message: 'Internal server error',
-      Object: null,
-      Errors: ['Failed to login'],
-    } as ApiResponse);
-  }
-};
+});

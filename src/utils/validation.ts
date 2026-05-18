@@ -26,9 +26,6 @@ export const signupSchema = z.object({
       passwordRegex,
       'Password must be at least 8 characters with one uppercase, one lowercase, one number, and one special character'
     ),
-  role: z.enum(['AUTHOR', 'READER'], {
-    errorMap: () => ({ message: 'Role must be either AUTHOR or READER' }),
-  }),
 });
 
 export const loginSchema = z.object({

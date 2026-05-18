@@ -10,6 +10,28 @@ declare global {
   }
 }
 
+export const optionalAuthenticate = (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): void => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    next();
+    return;
+  }
+
+  try {
+    const token = authHeader.substring(7);
+    req.user = verifyToken(token);
+  } catch {
+    // Invalid token on optional route — treat as anonymous
+  }
+
+  next();
+};
+
 export const authenticate = (
   req: Request,
   res: Response,

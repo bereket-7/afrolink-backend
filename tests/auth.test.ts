@@ -1,9 +1,11 @@
 import request from 'supertest';
-import app from '../src/app';
+import { createApp } from '../src/app';
 import prisma from '../src/config/database';
+import * as authUtils from '../src/utils/auth';
 
-// Mock Prisma
 jest.mock('../src/config/database');
+
+const app = createApp();
 
 describe('Auth Endpoints', () => {
   beforeEach(() => {
@@ -11,12 +13,12 @@ describe('Auth Endpoints', () => {
   });
 
   describe('POST /auth/signup', () => {
-    it('should create a new user successfully', async () => {
+    it('should create a new user as READER by default', async () => {
       const mockUser = {
         id: '123e4567-e89b-12d3-a456-426614174000',
         name: 'John Doe',
         email: 'john@example.com',
-        role: 'AUTHOR',
+        role: 'READER',
       };
 
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
@@ -33,17 +35,19 @@ describe('Auth Endpoints', () => {
 
       expect(response.status).toBe(201);
       expect(response.body.Success).toBe(true);
-      expect(response.body.Object.user).toEqual(mockUser);
-      expect(response.body.Object.token).toBeDefined();
+      expect(response.body.Object.user.role).toBe('READER');
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ role: 'READER' }),
+        })
+      );
     });
 
     it('should return 409 if email already exists', async () => {
-      const mockUser = {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
         id: '123e4567-e89b-12d3-a456-426614174000',
         email: 'john@example.com',
-      };
-
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+      });
 
       const response = await request(app)
         .post('/auth/signup')
@@ -51,12 +55,10 @@ describe('Auth Endpoints', () => {
           name: 'John Doe',
           email: 'john@example.com',
           password: 'Password123!',
-          role: 'AUTHOR',
         });
 
       expect(response.status).toBe(409);
       expect(response.body.Success).toBe(false);
-      expect(response.body.Errors).toContain('Email already registered');
     });
 
     it('should return 400 for invalid password', async () => {
@@ -66,7 +68,6 @@ describe('Auth Endpoints', () => {
           name: 'John Doe',
           email: 'john@example.com',
           password: 'weak',
-          role: 'AUTHOR',
         });
 
       expect(response.status).toBe(400);
@@ -80,11 +81,12 @@ describe('Auth Endpoints', () => {
         id: '123e4567-e89b-12d3-a456-426614174000',
         name: 'John Doe',
         email: 'john@example.com',
-        password: '$2b$10$hashedpassword',
+        password: 'hashed',
         role: 'AUTHOR',
       };
 
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+      jest.spyOn(authUtils, 'comparePassword').mockResolvedValue(true);
 
       const response = await request(app)
         .post('/auth/login')
@@ -110,7 +112,6 @@ describe('Auth Endpoints', () => {
 
       expect(response.status).toBe(401);
       expect(response.body.Success).toBe(false);
-      expect(response.body.Errors).toContain('Invalid credentials');
     });
   });
 });

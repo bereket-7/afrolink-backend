@@ -82,6 +82,8 @@ A robust, production-ready RESTful API for a news platform where Authors publish
    REDIS_PASSWORD=""
    PORT="3000"
    NODE_ENV="development"
+   CORS_ORIGINS="http://localhost:3000"
+   TRUST_PROXY="false"
    ```
 
 4. **Set up the database**
@@ -93,14 +95,17 @@ A robust, production-ready RESTful API for a news platform where Authors publish
    npx prisma generate
    ```
 
-5. **Start Redis**
-   ```bash
-   # If using Docker
-   docker run -d -p 6379:6379 redis
-   
-   # Or start Redis locally
-   redis-server
-   ```
+5. **Start Redis** (or use Docker Compose below)
+
+## Docker Compose (recommended)
+
+Run the full stack (API, PostgreSQL, Redis):
+
+```bash
+docker compose up --build
+```
+
+The API runs migrations on startup and listens on port 3000.
 
 ## Running the Application
 
@@ -137,10 +142,11 @@ Register a new user account.
 {
   "name": "John Doe",
   "email": "john@example.com",
-  "password": "Password123!",
-  "role": "AUTHOR"
+  "password": "Password123!"
 }
 ```
+
+New accounts are created with the `READER` role by default.
 
 **Response:**
 ```json
@@ -197,7 +203,7 @@ Public feed of published articles with filtering and pagination.
 ```
 
 #### GET /articles/:id
-Get article details with read tracking (rate limited: 1 read per 30 seconds per user per article).
+Get article details with read tracking. Published articles are public; authors can read their own drafts when authenticated. Rate limited: 1 read per 30 seconds per authenticated user (or per IP when anonymous) per article.
 
 #### POST /articles (Author only)
 Create a new article.
@@ -299,9 +305,9 @@ The job queue ensures:
 ## Rate Limiting
 
 ### Article Read Rate Limiting
-- **Limit**: 1 read per 30 seconds per user per article
+- **Limit**: 1 read per 30 seconds per user per article (or per IP when not authenticated)
 - **Purpose**: Prevents spam from page refreshes
-- **Implementation**: Uses user ID + article ID as rate limit key
+- **Implementation**: Optional JWT on `GET /articles/:id`; uses user ID + article ID when token present, otherwise IP + article ID
 
 ### General Rate Limiting
 - **Limit**: 100 requests per 15 minutes per IP
@@ -314,7 +320,8 @@ The job queue ensures:
 - **JWT Authentication**: 24-hour token expiration
 - **RBAC Middleware**: Role-based access control for protected routes
 - **SQL Injection Prevention**: Prisma ORM with parameterized queries
-- **XSS Protection**: Express built-in middleware
+- **Helmet**: Security HTTP headers
+- **CORS**: Configurable allowed origins via `CORS_ORIGINS`
 - **Rate Limiting**: Configurable limits to prevent abuse
 - **Soft Delete Integrity**: Automatic filtering of deleted records from public endpoints
 
@@ -354,15 +361,28 @@ afrolink-backend/
 │   ├── routes/          # API route definitions
 │   ├── types/           # TypeScript type definitions
 │   ├── utils/           # Utility functions (auth, validation)
-│   └── app.ts           # Express app setup
+│   ├── app.ts           # Express app factory (createApp)
+│   └── server.ts        # HTTP server entry point
 ├── prisma/
-│   └── schema.prisma    # Database schema
-├── tests/               # Unit tests
+│   ├── schema.prisma    # Database schema
+│   └── migrations/      # Versioned SQL migrations
+├── tests/               # Unit and integration tests
+├── docker-compose.yml   # Local/staging stack
+├── Dockerfile
+├── .github/workflows/   # CI pipeline
 ├── .env.example         # Environment variables template
 ├── package.json         # Dependencies and scripts
 ├── tsconfig.json        # TypeScript configuration
 └── README.md            # This file
 ```
+
+## Health Check
+
+`GET /health` returns database and Redis status. Returns `503` when dependencies are unavailable.
+
+## CI
+
+GitHub Actions runs lint, build, migrations, and tests on push/PR. See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## License
 

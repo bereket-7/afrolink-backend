@@ -17,6 +17,7 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === 'true' || v === '1'),
+  LOG_LEVEL: z.string().default('info'),
 });
 
 const env = envSchema.parse(process.env);

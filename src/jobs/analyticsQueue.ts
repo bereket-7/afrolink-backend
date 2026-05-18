@@ -1,11 +1,12 @@
 import Queue from 'bull';
 import env from '../config/env';
 import prisma from '../config/database';
+import logger from '../config/logger';
 
 let analyticsQueue: Queue.Queue | null = null;
 
 const processAnalyticsJob = async (job: Queue.Job): Promise<{ success: boolean }> => {
-  console.log('Processing analytics job:', job.id);
+  logger.info('Processing analytics job:', { jobId: job.id });
 
   const processDate = job.data.date
     ? new Date(job.data.date)
@@ -51,7 +52,7 @@ const processAnalyticsJob = async (job: Queue.Job): Promise<{ success: boolean }
     )
   );
 
-  console.log('Analytics job completed successfully');
+  logger.info('Analytics job completed successfully', { jobId: job.id, articlesProcessed: readCounts.length });
   return { success: true };
 };
 
@@ -69,6 +70,18 @@ export const initAnalyticsQueue = (): Queue.Queue => {
   });
 
   analyticsQueue.process(processAnalyticsJob);
+
+  analyticsQueue.on('failed', (job, err) => {
+    logger.error(`Job ${job?.id} failed:`, err);
+  });
+
+  analyticsQueue.on('completed', (job, result) => {
+    logger.info(`Job ${job.id} completed:`, result);
+  });
+
+  analyticsQueue.on('error', (err) => {
+    logger.error('Queue error:', err);
+  });
 
   analyticsQueue.add(
     {},

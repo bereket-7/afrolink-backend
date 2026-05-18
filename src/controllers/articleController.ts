@@ -5,6 +5,7 @@ import { ApiResponse, PaginatedResponse, JwtPayload } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { asyncHandler } from '../utils/asyncHandler';
 import { canViewArticle } from '../utils/articleVisibility';
+import logger from '../config/logger';
 
 export const createArticle = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const user = req.user as JwtPayload;
@@ -222,7 +223,7 @@ export const getArticleById = asyncHandler(async (req: Request, res: Response): 
         },
       });
     } catch (error) {
-      console.error('Failed to create read log:', error);
+      logger.error('Failed to create read log:', error);
     }
   });
 

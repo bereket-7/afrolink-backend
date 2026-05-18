@@ -7,7 +7,7 @@ import { AppError } from '../middleware/errorHandler';
 import { asyncHandler } from '../utils/asyncHandler';
 
 export const signup = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const { name, email, password }: SignupInput = req.body;
+    const { name, email, password, role }: SignupInput = req.body;
 
     const existingUser = await prisma.user.findUnique({
       where: { email },
@@ -24,7 +24,7 @@ export const signup = asyncHandler(async (req: Request, res: Response): Promise<
         name,
         email,
         password: hashedPassword,
-        role: 'READER',
+        role,
       },
       select: {
         id: true,

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import env from '../config/env';
+import logger from '../config/logger';
 
 export class AppError extends Error {
   public statusCode: number;
@@ -42,11 +42,7 @@ export const errorHandler = (
     }
   }
 
-  if (env.NODE_ENV !== 'production') {
-    console.error('Error:', err);
-  } else {
-    console.error('Error:', err.message);
-  }
+  logger.error('Unexpected error:', err);
 
   res.status(500).json({
     Success: false,

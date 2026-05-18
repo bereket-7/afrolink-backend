@@ -2,91 +2,107 @@ import Queue from 'bull';
 import env from '../config/env';
 import prisma from '../config/database';
 
-const analyticsQueue = new Queue('analytics', {
-  redis: {
-    host: env.REDIS_HOST,
-    port: parseInt(env.REDIS_PORT),
-    password: env.REDIS_PASSWORD || undefined,
-  },
-});
+let analyticsQueue: Queue.Queue | null = null;
 
-// Process analytics aggregation job
-analyticsQueue.process(async (job) => {
+const processAnalyticsJob = async (job: Queue.Job): Promise<{ success: boolean }> => {
   console.log('Processing analytics job:', job.id);
-  
-  try {
-    // Get the date to process (default to yesterday in GMT)
-    const processDate = job.data.date 
-      ? new Date(job.data.date)
-      : new Date(Date.now() - 24 * 60 * 60 * 1000); // Yesterday
 
-    // Set to start of day in GMT
-    const startOfDay = new Date(processDate);
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    
-    const endOfDay = new Date(processDate);
-    endOfDay.setUTCHours(23, 59, 59, 999);
+  const processDate = job.data.date
+    ? new Date(job.data.date)
+    : new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    // Get all articles
-    const articles = await prisma.article.findMany({
-      where: {
-        deletedAt: null,
+  const startOfDay = new Date(processDate);
+  startOfDay.setUTCHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(processDate);
+  endOfDay.setUTCHours(23, 59, 59, 999);
+
+  const readCounts = await prisma.readLog.groupBy({
+    by: ['articleId'],
+    where: {
+      readAt: {
+        gte: startOfDay,
+        lte: endOfDay,
       },
-      select: {
-        id: true,
-      },
-    });
+    },
+    _count: {
+      articleId: true,
+    },
+  });
 
-    // Aggregate reads for each article
-    for (const article of articles) {
-      const readCount = await prisma.readLog.count({
+  await Promise.all(
+    readCounts.map((row) =>
+      prisma.dailyAnalytics.upsert({
         where: {
-          articleId: article.id,
-          readAt: {
-            gte: startOfDay,
-            lte: endOfDay,
-          },
-        },
-      });
-
-      if (readCount > 0) {
-        // Upsert into DailyAnalytics
-        await prisma.dailyAnalytics.upsert({
-          where: {
-            articleId_date: {
-              articleId: article.id,
-              date: startOfDay,
-            },
-          },
-          update: {
-            viewCount: readCount,
-          },
-          create: {
-            articleId: article.id,
-            viewCount: readCount,
+          articleId_date: {
+            articleId: row.articleId,
             date: startOfDay,
           },
-        });
-      }
-    }
+        },
+        update: {
+          viewCount: row._count.articleId,
+        },
+        create: {
+          articleId: row.articleId,
+          viewCount: row._count.articleId,
+          date: startOfDay,
+        },
+      })
+    )
+  );
 
-    console.log('Analytics job completed successfully');
-    return { success: true };
-  } catch (error) {
-    console.error('Analytics job failed:', error);
-    throw error;
+  console.log('Analytics job completed successfully');
+  return { success: true };
+};
+
+export const initAnalyticsQueue = (): Queue.Queue => {
+  if (analyticsQueue) {
+    return analyticsQueue;
   }
-});
 
-// Schedule daily job at midnight GMT
-analyticsQueue.add(
-  {},
-  {
-    repeat: {
-      pattern: '0 0 * * *', // Cron pattern: every day at midnight
-      tz: 'GMT',
+  analyticsQueue = new Queue('analytics', {
+    redis: {
+      host: env.REDIS_HOST,
+      port: parseInt(env.REDIS_PORT, 10),
+      password: env.REDIS_PASSWORD || undefined,
     },
-  }
-);
+  });
 
-export default analyticsQueue;
+  analyticsQueue.process(processAnalyticsJob);
+
+  analyticsQueue.add(
+    {},
+    {
+      repeat: {
+        pattern: '0 0 * * *',
+        tz: 'GMT',
+      },
+    }
+  );
+
+  return analyticsQueue;
+};
+
+export const getAnalyticsQueue = (): Queue.Queue | null => analyticsQueue;
+
+export const closeAnalyticsQueue = async (): Promise<void> => {
+  if (analyticsQueue) {
+    await analyticsQueue.close();
+    analyticsQueue = null;
+  }
+};
+
+export const checkRedisHealth = async (): Promise<'ok' | 'unavailable' | 'not_configured'> => {
+  const queue = getAnalyticsQueue();
+  if (!queue) {
+    return 'not_configured';
+  }
+
+  try {
+    const client = await queue.client;
+    const result = await client.ping();
+    return result === 'PONG' ? 'ok' : 'unavailable';
+  } catch {
+    return 'unavailable';
+  }
+};

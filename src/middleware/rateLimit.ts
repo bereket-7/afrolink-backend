@@ -14,8 +14,7 @@ export const articleReadRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: Request) => {
-    // Use combination of IP and article ID for rate limiting
-    const userId = (req as any).user?.sub || req.ip;
+    const userId = req.user?.sub ?? req.ip;
     const articleId = req.params.id;
     return `${userId}-${articleId}`;
   },

@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import env from '../config/env';
 
 export class AppError extends Error {
   public statusCode: number;
@@ -28,9 +29,8 @@ export const errorHandler = (
     return;
   }
 
-  // Prisma errors
   if (err.name === 'PrismaClientKnownRequestError') {
-    const prismaError = err as any;
+    const prismaError = err as { code?: string };
     if (prismaError.code === 'P2002') {
       res.status(409).json({
         Success: false,
@@ -42,8 +42,12 @@ export const errorHandler = (
     }
   }
 
-  // Generic error
-  console.error('Error:', err);
+  if (env.NODE_ENV !== 'production') {
+    console.error('Error:', err);
+  } else {
+    console.error('Error:', err.message);
+  }
+
   res.status(500).json({
     Success: false,
     Message: 'Internal server error',
